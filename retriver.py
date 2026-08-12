@@ -10,20 +10,7 @@ ignored_dirs = {
     "build"
 }
 
-# allowed_extensions = {
-#     ".py",
-#     ".md",
-#     ".txt",
-#     ".yml",
-#     ".yaml",
-#     ".json",
-#     ".toml"
-# }
 
-# allowed_files = {
-#     "Dockerfile",
-#     "requirements.txt"
-# }
 
 
 def discover_files(p):
@@ -36,15 +23,25 @@ def discover_files(p):
                 files.extend(discover_files(item))
 
         elif item.is_file():
-            # if item.suffix in allowed_extensions or item.name in allowed_files:
             files.append(item)
 
     return files
 
-
 p = Path("data")
 
-files = discover_files(p)
 
-for file in files:
+files_name = discover_files(p)
+
+for file in files_name:
     print(file)
+
+text_files = []
+for file in files_name:
+    with open(str(file), "r", encoding="utf-8") as f:
+        content = f.read()
+        text_files.append((file, content))
+        # print(f"Content of {file}:")
+        # print(content)
+        # print("-" * 40)
+
+# print(text_files)
