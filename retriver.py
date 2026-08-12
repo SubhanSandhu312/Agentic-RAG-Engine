@@ -1,14 +1,50 @@
 from pathlib import Path
 
+ignored_dirs = {
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "node_modules",
+    "dist",
+    "build"
+}
+
+# allowed_extensions = {
+#     ".py",
+#     ".md",
+#     ".txt",
+#     ".yml",
+#     ".yaml",
+#     ".json",
+#     ".toml"
+# }
+
+# allowed_files = {
+#     "Dockerfile",
+#     "requirements.txt"
+# }
+
+
+def discover_files(p):
+    files = []
+
+    for item in p.iterdir():
+
+        if item.is_dir():
+            if item.name not in ignored_dirs:
+                files.extend(discover_files(item))
+
+        elif item.is_file():
+            # if item.suffix in allowed_extensions or item.name in allowed_files:
+            files.append(item)
+
+    return files
+
+
 p = Path("data")
 
-for items in p.iterdir():
-    print(items)
-    if items.is_dir():
-        for inner in items.iterdir():
-            print(inner)
-            if inner.is_dir():
-                for innest in inner.iterdir():
+files = discover_files(p)
 
-                    # if innest.exists():
-                    # print(innest)
+for file in files:
+    print(file)
