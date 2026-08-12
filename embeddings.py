@@ -6,7 +6,7 @@ embeddings_list = []
 for file, content in chunks:
     embeddings = model.encode(content)
     embeddings_list.append((file, content, embeddings))
-    # print(f"Embeddings for {file}:")
-    # print(embeddings)
-    # print("-" * 40)
+    print(f"Embeddings for {file}:")
+    print(embeddings)
+    print("-" * 40)
 print(len(embeddings_list))
