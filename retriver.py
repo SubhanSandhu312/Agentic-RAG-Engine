@@ -9,5 +9,6 @@ for items in p.iterdir():
             print(inner)
             if inner.is_dir():
                 for innest in inner.iterdir():
+
                     # if innest.exists():
-                    print(innest)
+                    # print(innest)
