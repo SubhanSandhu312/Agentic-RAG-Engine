@@ -12,4 +12,5 @@ for file, content in chunks:
     print(embeddings)
     print("-" * 40)
 print(len(embeddings_list_whole))
+
 print(embeddings_list.shape)
