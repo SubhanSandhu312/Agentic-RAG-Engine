@@ -8,9 +8,9 @@ for file, content in text_files:
         chunks.append((file, chunk))
 
 
-print(chunks)
-print(len(text_files))
-print("Total number of chunks are ", len(chunks))
+# print(chunks)
+# print(len(text_files))
+# print("Total number of chunks are ", len(chunks))
 
 
 # print(chunks[0])
