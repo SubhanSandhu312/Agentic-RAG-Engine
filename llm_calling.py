@@ -1,22 +1,11 @@
-from Faiss_Searach import indices
+from embeddings import query_embedding
+from Faiss_Searach import query_indices
 from embeddings import embeddings_list_whole
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
-
-relivant_chunks = []
-for i in range(len(indices[0])):
-    index = indices[0][i]
-    relivant_chunks.append(embeddings_list_whole[index])
-    file, content, embeddings = relivant_chunks[-1]
-    print(f"File: {file}")
-    print(f"Content: {content}")
-    # print(f"Embeddings: {embeddings}")
-    print("-" * 40)
-
-
 
 
 
@@ -58,5 +47,21 @@ Question:
 
 
 query = "What is the issue in the docker-build-fail.yml file and how can it be resolved?"
+def the_call(query):
+    query_vector = query_embedding(query)
+    scores, indices = query_indices(query_vector, top_k=3)
+    # return scores, indices
+    relivant_chunks = []
+    for i in range(len(indices[0])):
+        index = indices[0][i]
+        relivant_chunks.append(embeddings_list_whole[index])
+        file, content, embeddings = relivant_chunks[-1]
+        # print(f"File: {file}")
+        # print(f"Content: {content}")
+        # # print(f"Embeddings: {embeddings}")
+        # print("-" * 40)
 
-print(generate_answer(query, context="\n".join([content for _, content, _ in relivant_chunks])))
+    context_text = "\n\n".join([chunk[1] for chunk in relivant_chunks])
+    print(generate_answer(query, context=context_text))
+
+the_call(query)

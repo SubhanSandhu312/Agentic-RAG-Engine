@@ -32,8 +32,8 @@ p = Path("data")
 
 files_name = discover_files(p)
 
-for file in files_name:
-    print(file)
+# for file in files_name:
+#     print(file)
 
 text_files = []
 for file in files_name:

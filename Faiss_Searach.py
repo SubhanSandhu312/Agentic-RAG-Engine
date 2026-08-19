@@ -31,11 +31,13 @@ index.add(embeddings_array)
 # In[5]:
 
 
-query_vector = np.random.rand(1, dimension).astype('float32')
+# query_vector = np.random.rand(1, dimension).astype('float32')
+def query_indices(query_vector, top_k=3):
+    scores, indices = index.search(query_vector, top_k)
+    return scores, indices
+# top_k = 3
+# scores, indices = index.search(query_vector, top_k)
 
-top_k = 3
-scores, indices = index.search(query_vector, top_k)
-
-print("Indices of nearest chunks:", indices)
-print("L2 Distances:", scores)
+# print("Indices of nearest chunks:", indices)
+# print("L2 Distances:", scores)
 

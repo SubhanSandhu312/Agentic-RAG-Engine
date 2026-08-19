@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "question": "Which Dockerfile step is failing during the container build process?",
+    "expected_sources": ["broken-pipeline-lab/Dockerfile"],
+    "expected_chunk_ids": [0, 1],
+    "ground_truth_answer": "The missing dependency installation step in the Dockerfile causes the build failure."
+  },
+  {
+    "id": 2,
+    "question": "Where is the syntax or YAML configuration error located in the CI workflow?",
+    "expected_sources": ["broken-pipeline-lab/.github/workflows/ci.yml"],
+    "expected_chunk_ids": [4, 5],
+    "ground_truth_answer": "An indentation and misconfigured action parameter in ci.yml."
+  },
+  {
+    "id": 3,
+    "question": "Why are the automated unit tests failing in the test suite?",
+    "expected_sources": ["broken-pipeline-lab/tests/test_pipeline.py"],
+    "expected_chunk_ids": [12],
+    "ground_truth_answer": "An intentional assertion error in test_pipeline.py checking pipeline output."
+  },
+  {
+    "id": 4,
+    "question": "Which dependency is missing from requirements.txt that breaks the build?",
+    "expected_sources": ["broken-pipeline-lab/requirements.txt"],
+    "expected_chunk_ids": [8],
+    "ground_truth_answer": "The missing package 'pytest-cov' required by the test runner."
+  }
+]

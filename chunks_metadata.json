@@ -1,0 +1,146 @@
+[
+  {
+    "chunk_id": 0,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.github\\workflows\\01-missing-dependency.yml",
+    "text": "name: 01 - Missing Dependency\n\non:\n  push:\n    paths:\n      - \"app/main.py\"\n      - \"requirements.txt\"\n  workflow_dispatch:\n\njobs:\n  run-app:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n\n      - name: Set up Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: \"3.11\"\n\n      - name: Install dependencies\n        run: pip install -r requirem"
+  },
+  {
+    "chunk_id": 1,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.github\\workflows\\01-missing-dependency.yml",
+    "text": "ents.txt\n\n      - name: Run app\n        run: python app/main.py\n        # Fails with: ModuleNotFoundError: No module named 'requests'\n"
+  },
+  {
+    "chunk_id": 2,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.github\\workflows\\02-failing-tests.yml",
+    "text": "name: 02 - Failing Tests\n\non:\n  push:\n    paths:\n      - \"tests/**\"\n  workflow_dispatch:\n\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n\n      - name: Set up Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: \"3.11\"\n\n      - name: Install dependencies\n        run: |\n          pip install -r requirements.txt\n          pip ins"
+  },
+  {
+    "chunk_id": 3,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.github\\workflows\\02-failing-tests.yml",
+    "text": "tall requests  # installed here so this job fails on the ASSERTION, not the import\n\n      - name: Run tests\n        run: pytest tests/ -v\n        # Fails with: AssertionError: assert 5 == 6\n"
+  },
+  {
+    "chunk_id": 4,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.github\\workflows\\03-docker-build-fail.yml",
+    "text": "name: 03 - Docker Build Failure\n\non:\n  push:\n    paths:\n      - \"Dockerfile\"\n  workflow_dispatch:\n\njobs:\n  docker-build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n\n      - name: Build Docker image\n        run: docker build -t broken-pipeline-lab:latest .\n        # Fails with: \"COPY main.py .\" -> file not found in build context\n"
+  },
+  {
+    "chunk_id": 5,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.github\\workflows\\04-invalid-yaml.yml",
+    "text": "name: 04 - Invalid YAML\n\non:\n  push:\n    paths:\n      - \".github/workflows/04-invalid-yaml.yml\"\n  workflow_dispatch:\n\njobs:\n  broken-job:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: This step has bad indentation\n      run: echo \"this line is mis-indented and breaks YAML parsing\"\n      - name: Duplicate key below (also invalid)\n        run: echo \"first\"\n   "
+  },
+  {
+    "chunk_id": 6,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.github\\workflows\\04-invalid-yaml.yml",
+    "text": "     run: echo \"second\"\n"
+  },
+  {
+    "chunk_id": 7,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.github\\workflows\\05-syntax-error.yml",
+    "text": "name: 05 - Python Syntax Error\n\non:\n  push:\n    paths:\n      - \"app/broken_syntax.py\"\n  workflow_dispatch:\n\njobs:\n  run-broken-script:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n\n      - name: Set up Python\n        uses: actions/setup-python@v5\n        with:\n          python-version: \"3.11\"\n\n      - name: Run broken script\n        run: python app/broken_syntax.py\n     "
+  },
+  {
+    "chunk_id": 8,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.github\\workflows\\05-syntax-error.yml",
+    "text": "   # Fails with: SyntaxError: expected ':'\n"
+  },
+  {
+    "chunk_id": 9,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\.gitignore",
+    "text": "__pycache__/\n*.pyc\n.venv/\nvenv/\n.env\n*.log\n"
+  },
+  {
+    "chunk_id": 10,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\app\\broken_syntax.py",
+    "text": "\"\"\"\nDeliberately contains a Python syntax error for the\n'syntax error' failure scenario.\n\"\"\"\n\ndef broken_function(x, y)  # missing colon\n    return x + y\n\nprint(broken_function(1, 2))\n"
+  },
+  {
+    "chunk_id": 11,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\app\\main.py",
+    "text": "\"\"\"\nTiny demo app used by the CI workflows.\n\nIntentionally imports `requests`, which is NOT listed in requirements.txt.\nThis is what powers the \"missing dependency\" failure scenario.\n\"\"\"\nimport requests\n\n\ndef get_status(url: str) -> int:\n    response = requests.get(url, timeout=5)\n    return response.status_code\n\n\ndef add(a: int, b: int) -> int:\n    return a + b\n\n\nif __name__ == \"__main__\":\n    pr"
+  },
+  {
+    "chunk_id": 12,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\app\\main.py",
+    "text": "int(\"App booted OK\")\n    print(add(2, 3))\n"
+  },
+  {
+    "chunk_id": 13,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\Dockerfile",
+    "text": "# Intentionally broken Dockerfile for the \"docker build failure\" scenario.\nFROM python:3.11-slim\n\nWORKDIR /app\n\nCOPY requirements.txt . \nRUN pip install --no-cache-dir -r requirements.txt\n\n# BUG: this file does not exist in the repo (real path is app/main.py)\nCOPY main.py .\n\nCMD [\"python\", \"main.py\"]\n"
+  },
+  {
+    "chunk_id": 14,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\README.md",
+    "text": "# broken-pipeline-lab\n\nA deliberately broken CI/CD test fixture. Each workflow fails in a different,\nrealistic way, so the Autonomous DevOps Pipeline Agent has varied ground-truth\nfailures to detect, parse, diagnose, and recommend fixes for.\n\n## Failure scenarios\n\n| # | Workflow file | Trigger path | Failure type | Expected root cause |\n|---|---|---|---|---|\n| 1 | `01-missing-dependency.yml` | `ap"
+  },
+  {
+    "chunk_id": 15,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\README.md",
+    "text": "p/main.py`, `requirements.txt` | `ModuleNotFoundError` | `requests` is imported but missing from `requirements.txt` |\n| 2 | `02-failing-tests.yml` | `tests/**` | `AssertionError` | `test_add_is_correct` asserts the wrong expected value |\n| 3 | `03-docker-build-fail.yml` | `Dockerfile` | Docker build error | `COPY main.py .` references a path that doesn't exist (`app/main.py` is the real path) |\n| "
+  },
+  {
+    "chunk_id": 16,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\README.md",
+    "text": "4 | `04-invalid-yaml.yml` | itself | Workflow parse failure | Bad indentation + duplicate `run:` key \u2014 YAML never parses, job never starts |\n| 5 | `05-syntax-error.yml` | `app/broken_syntax.py` | `SyntaxError` | Missing colon in function definition |\n\n## Why these five\n\nThey're chosen to be maximally distinct at every stage of the pipeline your\nagents will process:\n\n- **1 & 5** both crash at \"run "
+  },
+  {
+    "chunk_id": 17,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\README.md",
+    "text": "script\" but need different fixes (edit a\n  manifest file vs. edit source code) \u2014 good test that Root Cause Analysis\n  doesn't just pattern-match on \"Python error.\"\n- **2** fails *after* a clean install and clean parse \u2014 tests that Log\n  Analysis can find the real error inside a wall of pytest output, not just\n  the first traceback it sees.\n- **3** never touches Python tooling at all \u2014 tests that y"
+  },
+  {
+    "chunk_id": 18,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\README.md",
+    "text": "our agents\n  generalize beyond Python-specific log formats.\n- **4** never even starts a job (GitHub Actions rejects the workflow file\n  itself) \u2014 tests that your Monitoring Agent can detect and label failures\n  that have no logs to download at all. This is an edge case a lot of\n  first-pass implementations miss.\n\n## How to use this repo\n\n1. Push this repo to GitHub (see steps below).\n2. Push a sma"
+  },
+  {
+    "chunk_id": 19,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\README.md",
+    "text": "ll change to trigger one workflow at a time \u2014 e.g. edit\n   `app/main.py` and commit, which fires scenario 1 (edit only files listed\n   in that workflow's `paths:` so you trigger scenarios one at a time\n   instead of all five firing on every push).\n3. Confirm in the **Actions** tab that the run failed and inspect the raw\n   logs \u2014 this is exactly what your CI Monitoring Agent will fetch via the\n   "
+  },
+  {
+    "chunk_id": 20,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\README.md",
+    "text": "GitHub API in Phase 3.\n4. Once your agents exist, point them at this repo as their target and\n   compare their diagnosis/fix output against the \"expected root cause\"\n   column above \u2014 that's your evaluation set.\n\n## Pushing to GitHub\n\n```bash\ncd broken-pipeline-lab\ngit init\ngit add .\ngit commit -m \"Initial broken pipeline lab\"\ngit branch -M main\ngit remote add origin https://github.com/<your-usern"
+  },
+  {
+    "chunk_id": 21,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\README.md",
+    "text": "ame>/broken-pipeline-lab.git\ngit push -u origin main\n```\n\nAfter the push, go to the **Actions** tab on GitHub and enable workflows if\nprompted. Trigger any workflow manually via `workflow_dispatch` (the \"Run\nworkflow\" button) if you don't want to wait for a matching path change.\n"
+  },
+  {
+    "chunk_id": 22,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\requirements.txt",
+    "text": "pytest==8.2.0\n# NOTE: 'requests' is intentionally omitted here to trigger\n# ModuleNotFoundError during CI. This is scenario #1.\n"
+  },
+  {
+    "chunk_id": 23,
+    "repository": "broken-pipeline-lab",
+    "source_file": "data\\broken-pipeline-lab\\tests\\test_app.py",
+    "text": "\"\"\"\nDeliberately broken test to power the 'failed test' failure scenario.\n`add(2, 3)` returns 5, but this test asserts it equals 6.\n\"\"\"\nimport sys\nimport os\n\nsys.path.insert(0, os.path.join(os.path.dirname(__file__), \"..\"))\n\nfrom app.main import add\n\n\ndef test_add_is_correct():\n    assert add(2, 3) == 6  # Intentionally wrong expected value\n"
+  }
+]

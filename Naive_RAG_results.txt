@@ -1,0 +1,12 @@
+--- Running Step 1 Evaluation Baseline (K=3) ---
+Q: Which Dockerfile step is failing during the c... | Hits: 1/3 | Precision@3: 0.33
+Q: Where is the syntax or YAML configuration err... | Hits: 1/3 | Precision@3: 0.33
+Q: Why are the automated unit tests failing in t... | Hits: 0/3 | Precision@3: 0.00
+Q: Which dependency is missing from requirements... | Hits: 0/3 | Precision@3: 0.00
+
+==========================================
+      STEP 1 BASELINE EVALUATION METRICS  
+==========================================
+Average Recall@3:    0.2500
+Average Precision@3: 0.1667
+==========================================

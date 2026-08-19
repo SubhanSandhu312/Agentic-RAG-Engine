@@ -14,3 +14,8 @@ for file, content in chunks:
 # print(len(embeddings_list_whole))
 
 # print(embeddings_list.shape)
+
+
+def query_embedding(query):
+    query_vector = model.encode([query]).astype('float32')
+    return query_vector
