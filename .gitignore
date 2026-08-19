@@ -1,3 +1,4 @@
 data
 terminal_history.txt
 check.py
+.env
