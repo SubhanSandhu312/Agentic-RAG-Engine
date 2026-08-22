@@ -2,29 +2,37 @@
   {
     "id": 1,
     "question": "Which Dockerfile step is failing during the container build process?",
-    "expected_sources": ["broken-pipeline-lab/Dockerfile"],
-    "expected_chunk_ids": [0, 1],
-    "ground_truth_answer": "The missing dependency installation step in the Dockerfile causes the build failure."
+    "expected_sources": [
+      "broken-pipeline-lab/Dockerfile"
+    ],
+    "expected_chunk_ids": [13],
+    "ground_truth_answer": "The Docker build fails at `COPY main.py .` because the file is actually located at `app/main.py`."
   },
   {
     "id": 2,
     "question": "Where is the syntax or YAML configuration error located in the CI workflow?",
-    "expected_sources": ["broken-pipeline-lab/.github/workflows/ci.yml"],
-    "expected_chunk_ids": [4, 5],
-    "ground_truth_answer": "An indentation and misconfigured action parameter in ci.yml."
+    "expected_sources": [
+      "broken-pipeline-lab/.github/workflows/04-invalid-yaml.yml"
+    ],
+    "expected_chunk_ids": [5, 6],
+    "ground_truth_answer": "The workflow contains bad indentation for the `run` field and a duplicate `run` key, causing the YAML to fail parsing."
   },
   {
     "id": 3,
     "question": "Why are the automated unit tests failing in the test suite?",
-    "expected_sources": ["broken-pipeline-lab/tests/test_pipeline.py"],
-    "expected_chunk_ids": [12],
-    "ground_truth_answer": "An intentional assertion error in test_pipeline.py checking pipeline output."
+    "expected_sources": [
+      "broken-pipeline-lab/tests/test_app.py"
+    ],
+    "expected_chunk_ids": [23],
+    "ground_truth_answer": "The test intentionally asserts that add(2, 3) equals 6, but the function returns 5, causing an AssertionError."
   },
   {
     "id": 4,
     "question": "Which dependency is missing from requirements.txt that breaks the build?",
-    "expected_sources": ["broken-pipeline-lab/requirements.txt"],
-    "expected_chunk_ids": [8],
-    "ground_truth_answer": "The missing package 'pytest-cov' required by the test runner."
+    "expected_sources": [
+      "broken-pipeline-lab/requirements.txt"
+    ],
+    "expected_chunk_ids": [22],
+    "ground_truth_answer": "The `requests` package is missing from requirements.txt even though app/main.py imports it, causing a ModuleNotFoundError."
   }
 ]

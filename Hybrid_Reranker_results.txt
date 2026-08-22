@@ -1,0 +1,126 @@
+
+==========================================
+       RAG RETRIEVAL EVALUATION
+==========================================
+Benchmark Questions: 4
+Retrieval K: 20
+Final K Values: (3, 5, 10)
+
+
+------------------------------------------------------------
+QUESTION:
+Which Dockerfile step is failing during the container build process?
+
+Expected chunks: [13]
+
+BM25:  [13, 22, 11, 15, 5, 4, 19, 2, 18, 3, 21, 10, 17, 23, 14, 20, 16, 8, 12, 9]
+Recall: 1.00
+MRR:    1.00
+
+FAISS: [4, 13, 15, 14, 2, 5, 16, 0, 7, 21, 20, 19, 17, 3, 18, 11, 23, 12, 22, 1]
+Recall: 1.00
+MRR:    0.50
+
+RRF:   [13, 4, 15, 5, 2, 11, 14, 19, 22, 21, 16, 18, 3, 17, 20, 23, 12, 0, 7, 10, 8, 9, 1]
+Recall: 1.00
+MRR:    1.00
+
+Cross-Encoder ranking:
+[4, 13, 15, 8, 14, 16, 2, 9, 23, 11, 3, 1, 21, 10, 19, 5, 18, 22, 12, 17]
+CE Recall@3: 1.00 | Precision@3: 0.33 | MRR: 0.50
+CE Recall@5: 1.00 | Precision@5: 0.20 | MRR: 0.50
+CE Recall@10: 1.00 | Precision@10: 0.10 | MRR: 0.50
+
+------------------------------------------------------------
+QUESTION:
+Where is the syntax or YAML configuration error located in the CI workflow?
+
+Expected chunks: [5, 6]
+
+BM25:  [10, 11, 19, 15, 7, 5, 13, 16, 17, 3, 21, 14, 20, 18, 22, 23, 4, 8, 12, 9]
+Recall: 0.50
+MRR:    0.17
+
+FAISS: [16, 5, 14, 11, 7, 19, 8, 18, 10, 2, 0, 21, 22, 4, 20, 15, 12, 9, 17, 13]
+Recall: 0.50
+MRR:    0.50
+
+RRF:   [11, 5, 16, 19, 10, 7, 14, 15, 18, 21, 8, 13, 17, 20, 22, 4, 12, 9, 3, 2, 0, 23]
+Recall: 0.50
+MRR:    0.50
+
+Cross-Encoder ranking:
+[16, 5, 11, 7, 14, 19, 22, 10, 21, 8, 15, 0, 18, 2, 4, 17, 9, 13, 3, 12]
+CE Recall@3: 0.50 | Precision@3: 0.33 | MRR: 0.50
+CE Recall@5: 0.50 | Precision@5: 0.20 | MRR: 0.50
+CE Recall@10: 0.50 | Precision@10: 0.10 | MRR: 0.50
+
+------------------------------------------------------------
+QUESTION:
+Why are the automated unit tests failing in the test suite?
+
+Expected chunks: [23]
+
+BM25:  [17, 2, 16, 23, 3, 14, 19, 13, 11, 18, 21, 20, 15, 10, 4, 22, 8, 9, 12, 7]
+Recall: 1.00
+MRR:    0.25
+
+FAISS: [14, 23, 2, 3, 20, 17, 16, 18, 19, 5, 4, 8, 21, 22, 7, 11, 15, 10, 13, 0]
+Recall: 1.00
+MRR:    0.50
+
+RRF:   [2, 23, 17, 14, 3, 16, 19, 20, 18, 21, 11, 4, 13, 8, 15, 22, 10, 7, 5, 9, 12, 0]
+Recall: 1.00
+MRR:    0.50
+
+Cross-Encoder ranking:
+[15, 14, 23, 2, 3, 17, 18, 8, 9, 16, 10, 11, 4, 13, 22, 12, 19, 20, 21, 5]
+CE Recall@3: 1.00 | Precision@3: 0.33 | MRR: 0.33
+CE Recall@5: 1.00 | Precision@5: 0.20 | MRR: 0.33
+CE Recall@10: 1.00 | Precision@10: 0.10 | MRR: 0.33
+
+------------------------------------------------------------
+QUESTION:
+Which dependency is missing from requirements.txt that breaks the build?
+
+Expected chunks: [22]
+
+BM25:  [13, 15, 19, 0, 11, 5, 18, 17, 10, 23, 2, 16, 22, 3, 21, 14, 20, 8, 12, 9]
+Recall: 1.00
+MRR:    0.08
+
+FAISS: [11, 0, 15, 13, 4, 2, 14, 7, 1, 16, 21, 20, 5, 17, 22, 3, 18, 10, 23, 8]
+Recall: 1.00
+MRR:    0.07
+
+RRF:   [13, 15, 11, 0, 2, 5, 17, 16, 14, 18, 21, 10, 22, 23, 20, 3, 8, 19, 4, 7, 1, 12, 9]
+Recall: 1.00
+MRR:    0.08
+
+Cross-Encoder ranking:
+[15, 11, 13, 0, 14, 2, 4, 1, 21, 10, 23, 20, 16, 5, 8, 7, 9, 22, 3, 12]
+CE Recall@3: 0.00 | Precision@3: 0.00 | MRR: 0.00
+CE Recall@5: 0.00 | Precision@5: 0.00 | MRR: 0.00
+CE Recall@10: 0.00 | Precision@10: 0.00 | MRR: 0.00
+
+
+==========================================
+       FINAL RETRIEVAL RESULTS
+==========================================
+
+                 Recall@K
+------------------------------------------
+BM25:            0.8750
+FAISS:           0.8750
+RRF:              0.8750
+RRF + CE @ 3:    Recall=0.6250 | Precision=0.2500 | MRR=0.3333
+RRF + CE @ 5:    Recall=0.6250 | Precision=0.1500 | MRR=0.3333
+RRF + CE @ 10:    Recall=0.6250 | Precision=0.0750 | MRR=0.3333
+
+                 MRR
+------------------------------------------
+BM25:            0.3734
+FAISS:           0.3917
+RRF:             0.5192
+
+==========================================
