@@ -12,5 +12,7 @@ for file, content in text_files:
 # print(len(text_files))
 # print("Total number of chunks are ", len(chunks))
 
-
+# print(type(chunks))
+# print(type(chunks[0]))
+# print(chunks[0])
 # print(chunks[0])
