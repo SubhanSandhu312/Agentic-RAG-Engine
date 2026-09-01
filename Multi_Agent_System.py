@@ -12,6 +12,7 @@ from langgraph.prebuilt import tools_condition
 
 load_dotenv()
 
+
 llm = ChatOpenAI(
     model="openrouter/free",
     base_url="https://openrouter.ai/api/v1",
