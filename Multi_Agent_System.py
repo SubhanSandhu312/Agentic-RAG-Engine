@@ -16,7 +16,9 @@ load_dotenv()
 
 
 def router(state):
-    
+    if state["Critic_messages"][-1].content == "PASS":
+        return "yes"
+    return "No"
 
 llm = ChatOpenAI(
     model="openrouter/free",
