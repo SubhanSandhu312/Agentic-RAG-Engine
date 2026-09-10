@@ -27,13 +27,41 @@ llm = ChatOpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 
+
+def router(state: AgentState):
+    print("\n--- ROUTER ---")
+
+    MAX_RETRIES = 3
+
+    verdict = state.get(
+        "critic_result", {}
+    ).get(
+        "verdict",
+        "FAIL"
+    )
+
+    print("CRITIC VERDICT:", verdict)
+    print("ITERATION:", state.get("iteration_count"))
+
+    if verdict == "PASS":
+        print("→ SYNTHESIZER")
+        return "Synthesizer"
+
+    if state.get("iteration_count", 0) < MAX_RETRIES:
+        print("→ RETRY PLANNER")
+        return "planner"
+
+    print("→ MAX RETRIES → SYNTHESIZER")
+    return "Synthesizer"
+
 # 2. Node Functions
 def planner(state: AgentState):
+    print("\n--- PLANNER ---")
+
     iteration = state.get("iteration_count", 0)
     user_query = state.get("query", "")
     critic_feedback = state.get("critic_result", {})
-    
-    # Supply failure reasoning to the planner if this is a retry loop
+
     if iteration > 0 and critic_feedback:
         prompt_content = (
             f"Original Query: {user_query}\n"
@@ -48,23 +76,39 @@ def planner(state: AgentState):
         SystemMessage(content=PLANNER_SYSTEM_PROMPT),
         HumanMessage(content=prompt_content)
     ]
+
     response = llm.invoke(messages)
-    
+
+    print("PLANNER OUTPUT:", response.content)
+
     return {
         "current_query": response.content.strip(),
         "iteration_count": iteration + 1
     }
 
 def retriever(state: AgentState):
+    print("\n--- RETRIEVER ---")
+
     query_text = state.get("current_query", state.get("query", ""))
+
+    print("SEARCH QUERY:", query_text)
+
     context = the_call(query_text)
-    
-    # the_call returns chunk contents or metadata
-    chunks = [context] if isinstance(context, str) else context
-    return {"retrieved_chunks": chunks}
+
+    print("RETRIEVED CONTEXT:")
+    print(context)
+
+    return {
+        "retrieved_chunks": [context]
+    }
 
 def critic_agent(state: AgentState):
-    chunks_text = "\n\n".join(state.get("retrieved_chunks", []))
+    print("\n--- CRITIC ---")
+
+    chunks_text = "\n\n".join(
+        state.get("retrieved_chunks", [])
+    )
+
     prompt_content = (
         f"Original User Question: {state.get('query', '')}\n\n"
         f"Retrieved Evidence Chunks:\n{chunks_text}"
@@ -74,12 +118,14 @@ def critic_agent(state: AgentState):
         SystemMessage(content=CRITIC_SYSTEM_PROMPT),
         HumanMessage(content=prompt_content)
     ]
+
     response = llm.invoke(messages)
-    
+
+    print("CRITIC RAW OUTPUT:")
+    print(response.content)
+
     try:
-        # Parse JSON output from critic
-        raw_content = response.content.strip()
-        parsed_result = json.loads(raw_content)
+        parsed_result = json.loads(response.content.strip())
     except Exception:
         parsed_result = {
             "verdict": "FAIL",
@@ -87,10 +133,18 @@ def critic_agent(state: AgentState):
             "missing_info": "Unable to verify context validity."
         }
 
-    return {"critic_result": parsed_result}
+    print("CRITIC PARSED:", parsed_result)
 
+    return {
+        "critic_result": parsed_result
+    }
 def Synthesizer(state: AgentState):
-    chunks_text = "\n\n".join(state.get("retrieved_chunks", []))
+    print("\n--- SYNTHESIZER ---")
+
+    chunks_text = "\n\n".join(
+        state.get("retrieved_chunks", [])
+    )
+
     prompt_content = (
         f"User Inquiry: {state.get('query', '')}\n\n"
         f"Retrieved Context:\n{chunks_text}"
@@ -100,21 +154,15 @@ def Synthesizer(state: AgentState):
         SystemMessage(content=SYNTHESIZER_SYSTEM_PROMPT),
         HumanMessage(content=prompt_content)
     ]
-    response = llm.invoke(messages)
-    return {"final_answer": response.content}
 
-# 3. Router with retry limit safeguard
-def router(state: AgentState):
-    MAX_RETRIES = 3
-    verdict = state.get("critic_result", {}).get("verdict", "FAIL")
-    
-    if verdict == "PASS":
-        return "Synthesizer"
-    
-    if state.get("iteration_count", 0) < MAX_RETRIES:
-        return "planner"  # Loop back to planner to rewrite the query
-        
-    return "Synthesizer"  # Graceful fallback when attempts are exhausted
+    response = llm.invoke(messages)
+
+    print("SYNTHESIZER OUTPUT:")
+    print(response.content)
+
+    return {
+        "final_answer": response.content
+    }
 
 # 4. Graph Construction
 graph_builder = StateGraph(AgentState)

@@ -48,8 +48,6 @@ Question:
     return response.choices[0].message.content
 
 
-
-
 def the_call(query):
 
     query_vector = query_embedding(query)
@@ -65,6 +63,7 @@ def the_call(query):
         query,
         top_k=10
     )
+
 
     rrf_scores = {}
 
@@ -95,6 +94,7 @@ def the_call(query):
     print("RRF RESULTS:")
     print(ranked_chunks[:10])
 
+
     reranked_chunks = rerank(
         query,
         ranked_chunks,
@@ -103,6 +103,7 @@ def the_call(query):
 
     print("\nCROSS-ENCODER RESULTS:")
     print(reranked_chunks)
+
 
     top_chunks = [
         chunks[chunk_id]
@@ -114,13 +115,83 @@ def the_call(query):
         for chunk in top_chunks
     )
 
-    print("\nANSWER:")
-    print(
-        generate_answer(
-            query,
-            context=context_text
-        )
-    )
 
-query = "What is the issue in the docker-build-fail.yml file and how can it be resolved?"
-the_call(query)
+    return context_text
+
+
+
+
+# def the_call(query):
+
+#     query_vector = query_embedding(query)
+
+#     scores, faiss_indices = query_indices(
+#         query_vector,
+#         top_k=10
+#     )
+
+#     faiss_indices = faiss_indices[0]
+
+#     bm25_indices = query_bm25(
+#         query,
+#         top_k=10
+#     )
+
+#     rrf_scores = {}
+
+#     for rank, chunk_id in enumerate(
+#         bm25_indices,
+#         start=1
+#     ):
+#         rrf_scores[chunk_id] = (
+#             rrf_scores.get(chunk_id, 0)
+#             + 1 / (60 + rank)
+#         )
+
+#     for rank, chunk_id in enumerate(
+#         faiss_indices,
+#         start=1
+#     ):
+#         rrf_scores[chunk_id] = (
+#             rrf_scores.get(chunk_id, 0)
+#             + 1 / (60 + rank)
+#         )
+
+#     ranked_chunks = sorted(
+#         rrf_scores.items(),
+#         key=lambda x: x[1],
+#         reverse=True
+#     )
+
+#     print("RRF RESULTS:")
+#     print(ranked_chunks[:10])
+
+#     reranked_chunks = rerank(
+#         query,
+#         ranked_chunks,
+#         top_k=5
+#     )
+
+#     print("\nCROSS-ENCODER RESULTS:")
+#     print(reranked_chunks)
+
+#     top_chunks = [
+#         chunks[chunk_id]
+#         for chunk_id, score in reranked_chunks[:2]
+#     ]
+
+#     context_text = "\n\n".join(
+#         chunk[1]
+#         for chunk in top_chunks
+#     )
+
+#     print("\nANSWER:")
+#     print(
+#         generate_answer(
+#             query,
+#             context=context_text
+#         )
+#     )
+
+# query = "What is the issue in the docker-build-fail.yml file and how can it be resolved?"
+# the_call(query)
