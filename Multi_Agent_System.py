@@ -29,7 +29,7 @@ llm = ChatOpenAI(
 
 
 def router(state: AgentState):
-    print("\n--- ROUTER ---")
+
 
     MAX_RETRIES = 3
 
@@ -40,9 +40,6 @@ def router(state: AgentState):
         "FAIL"
     )
 
-    print("CRITIC VERDICT:", verdict)
-    print("ITERATION:", state.get("iteration_count"))
-
     if verdict == "PASS":
         print("→ SYNTHESIZER")
         return "Synthesizer"
@@ -51,12 +48,9 @@ def router(state: AgentState):
         print("→ RETRY PLANNER")
         return "planner"
 
-    print("→ MAX RETRIES → SYNTHESIZER")
     return "Synthesizer"
 
-# 2. Node Functions
 def planner(state: AgentState):
-    print("\n--- PLANNER ---")
 
     iteration = state.get("iteration_count", 0)
     user_query = state.get("query", "")
@@ -79,7 +73,6 @@ def planner(state: AgentState):
 
     response = llm.invoke(messages)
 
-    print("PLANNER OUTPUT:", response.content)
 
     return {
         "current_query": response.content.strip(),
@@ -87,23 +80,18 @@ def planner(state: AgentState):
     }
 
 def retriever(state: AgentState):
-    print("\n--- RETRIEVER ---")
 
     query_text = state.get("current_query", state.get("query", ""))
 
-    print("SEARCH QUERY:", query_text)
 
     context = the_call(query_text)
 
-    print("RETRIEVED CONTEXT:")
-    print(context)
 
     return {
         "retrieved_chunks": [context]
     }
 
 def critic_agent(state: AgentState):
-    print("\n--- CRITIC ---")
 
     chunks_text = "\n\n".join(
         state.get("retrieved_chunks", [])
@@ -121,8 +109,6 @@ def critic_agent(state: AgentState):
 
     response = llm.invoke(messages)
 
-    print("CRITIC RAW OUTPUT:")
-    print(response.content)
 
     try:
         parsed_result = json.loads(response.content.strip())
@@ -133,13 +119,11 @@ def critic_agent(state: AgentState):
             "missing_info": "Unable to verify context validity."
         }
 
-    print("CRITIC PARSED:", parsed_result)
 
     return {
         "critic_result": parsed_result
     }
 def Synthesizer(state: AgentState):
-    print("\n--- SYNTHESIZER ---")
 
     chunks_text = "\n\n".join(
         state.get("retrieved_chunks", [])
@@ -157,14 +141,11 @@ def Synthesizer(state: AgentState):
 
     response = llm.invoke(messages)
 
-    print("SYNTHESIZER OUTPUT:")
-    print(response.content)
 
     return {
         "final_answer": response.content
     }
 
-# 4. Graph Construction
 graph_builder = StateGraph(AgentState)
 
 graph_builder.add_node("planner", planner)
