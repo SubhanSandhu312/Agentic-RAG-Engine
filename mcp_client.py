@@ -52,7 +52,10 @@ SERVER_SCRIPT = str(Path(__file__).resolve().parent / "mcp_server.py")
 # server) kept only so the classification set doesn't need to change again
 # if either is implemented later; calling them is blocked the same way a
 # genuinely destructive tool would be, they simply never reach the server.
-READ_ONLY_TOOLS = {"search_documents", "retrieve_file", "search_code"}
+READ_ONLY_TOOLS = {"search_documents", "retrieve_file", "search_code", "search_history"}
+# search_history (Step 6) queries the persistent memory layer (memory_manager.py) -
+# it never mutates anything, so it is classified read-only exactly like the other
+# 3 retrieval tools and is NOT added to DESTRUCTIVE_TOOLS below.
 DESTRUCTIVE_TOOLS = {"create_issue", "modify_file", "run_sql_mutation"}
 
 

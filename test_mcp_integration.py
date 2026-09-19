@@ -47,6 +47,7 @@ def main():
     check("search_documents" in tools, "search_documents is discoverable via MCP list_tools")
     check("retrieve_file" in tools, "retrieve_file is discoverable via MCP list_tools")
     check("create_issue" in tools, "create_issue (Step 5 destructive tool) is discoverable via MCP list_tools")
+    check("search_history" in tools, "search_history (Step 6 memory tool) is discoverable via MCP list_tools")
 
     print("\n=== 2. search_documents: real query ===")
     result = mcp_client.call_tool_json(
@@ -103,8 +104,8 @@ def main():
     print("\n=== 10. MCP tool schemas convert to OpenAI/LLM function-calling format ===")
     schemas = mcp_client.get_llm_tool_schemas()
     names = {s["function"]["name"] for s in schemas}
-    check(names == {"search_documents", "retrieve_file", "search_code", "create_issue"},
-          "get_llm_tool_schemas() returns exactly the 4 tools the server exposes")
+    check(names == {"search_documents", "retrieve_file", "search_code", "create_issue", "search_history"},
+          "get_llm_tool_schemas() returns exactly the 5 tools the server exposes")
     check(all(s["type"] == "function" and "parameters" in s["function"] for s in schemas),
           "every schema has the {type: function, function: {..., parameters}} shape bind_tools() expects")
 
@@ -151,6 +152,16 @@ def main():
         print("OK: create_issue is intercepted before any JSON-RPC call when there is no checkpointer/thread")
     issues_after = issues_file.read_text(encoding="utf-8") if issues_file.exists() else None
     check(issues_before == issues_after, "data/issues.json was not modified by the blocked create_issue call")
+
+    print("\n=== 15. search_history: empty memory returns a graceful failure ===")
+    result = mcp_client.call_tool_json("search_history", {"query": "nonexistent query xyz123", "top_k": 3})
+    check(isinstance(result, dict) and "success" in result, "search_history returns a structured dict")
+    check(result["success"] is False, "search_history reports no results gracefully when nothing matches")
+    check(result["results"] == [], "search_history returns an empty list, not an error, for no matches")
+
+    print("\n=== 16. search_history: invalid (empty) query ===")
+    result = mcp_client.call_tool_json("search_history", {"query": "", "top_k": 3})
+    check(result["success"] is False, "empty query fails gracefully (no exception raised)")
 
     print("\nALL MCP INTEGRATION CHECKS PASSED")
 

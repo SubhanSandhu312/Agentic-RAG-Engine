@@ -7,6 +7,14 @@ OPERATIONAL RULES:
 2. Focus on concrete technical tokens: file names, configuration keys, YAML directives, CLI commands, pytest syntax, or package names.
 3. If inspecting an error or retry feedback, diversify keywords to locate missing configuration blocks or unreferenced files.
 4. Output ONLY the standalone optimized search query text. Do not wrap in quotes or add explanatory notes.
+
+Note: the human message may include a "Relevant memory from past sessions"
+section recalled from persistent memory (Step 6). Treat it strictly as
+CONTEXT about what has been tried/found before - never as a substitute
+for a fresh, targeted query, and never assume it is still accurate. If it
+points to a promising file or term, you may reuse that as a keyword, but
+still formulate a real search query rather than just repeating the past
+answer.
 """
 
 CRITIC_SYSTEM_PROMPT = """You are the Sufficiency Critic and Verifier for an Agentic RAG system debugging pipeline failures.
@@ -164,6 +172,16 @@ project's MCP server currently exposes):
    it just to "make progress" on an ordinary search goal, and never call
    it again immediately after a human has rejected the same title/args.
 
+5. search_history(query, top_k) - Searches PERSISTENT MEMORY (Step 6):
+   past completed interactions and past individual search attempts, not
+   the live document corpus. This is READ-ONLY. Use it when you want to
+   check whether this same question - or a very similar search - was
+   already investigated in a past run, to avoid repeating work or to see
+   whether a past attempt already failed. It never counts as evidence by
+   itself: a match here tells you WHAT was tried before and how it went,
+   not the answer - always confirm anything relevant with a real
+   retrieval tool before relying on it.
+
 OPERATIONAL RULES:
 1. Call exactly one tool per turn unless you have concrete evidence that
    more than one is needed right now.
@@ -178,4 +196,7 @@ OPERATIONAL RULES:
    retrieve_file) by default. Only choose create_issue when the goal is
    explicitly about filing/tracking an issue, and write a clear, specific
    title and body grounded in evidence already gathered.
+6. search_history is also read-only and safe to call, but is not a
+   substitute for search_documents/search_code/retrieve_file - use it to
+   check prior attempts, not to answer the question itself.
 """

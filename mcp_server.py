@@ -34,6 +34,15 @@ from mcp.server.fastmcp import FastMCP
 
 from llm_calling import search_documents_structured
 
+# Step 6: persistent memory layer. Imported defensively - if memory_manager
+# is missing or fails to import for any reason, the search_history tool
+# degrades to a structured error instead of crashing the whole server (the
+# 4 pre-existing retrieval/action tools must keep working either way).
+try:
+    from memory_manager import search_history as _memory_search_history
+except Exception as _memory_import_error:
+    _memory_search_history = None
+
 DATA_DIR = (PROJECT_ROOT / "data").resolve()
 
 # Local mock "issue tracker" storage for the create_issue action tool
@@ -267,6 +276,63 @@ def create_issue(title: str, body: str = "", metadata: dict = None) -> dict:
         return {"success": False, "issue": None, "error": f"failed to persist issue: {e}"}
 
     return {"success": True, "issue": issue, "error": None}
+
+
+
+@mcp.tool()
+def search_history(query: str, top_k: int = 3) -> dict:
+    """Search persistent agent memory (Step 6) for entries relevant to
+    `query`: both past COMPLETED interactions (episodic memory) and past
+    individual search attempts (search/retrieval memory), most relevant
+    first. This is READ-ONLY - it never modifies memory and is never
+    added to DESTRUCTIVE_TOOLS, so it never triggers human-in-the-loop
+    approval.
+
+    Use this to check whether a similar question has already been
+    investigated, or whether a particular search has already been tried
+    (and whether it succeeded or failed) before repeating it. Results are
+    CONTEXT from past runs, not verified ground truth - the caller should
+    still confirm anything important via search_documents/search_code/
+    retrieve_file.
+
+    Args:
+        query: Natural-language description of what you are looking for
+            in the agent's memory (e.g. the current investigation goal).
+        top_k: Maximum number of memory entries to return (default 3).
+
+    Returns:
+        {"success": bool, "results": [...], "error": str | None}. Each
+        result is either {"type": "episodic", "query", "final_answer_snippet",
+        "status", "timestamp", "session_id"} or {"type": "search_attempt",
+        "tool", "query", "success", "result_count", "timestamp",
+        "session_id"}. success is False and results is empty when the
+        query is invalid, memory is unavailable, or nothing relevant has
+        been recorded yet - it never raises for those cases.
+    """
+
+    if not isinstance(query, str) or not query.strip():
+        return {"success": False, "results": [], "error": "query must be a non-empty string"}
+
+    try:
+        top_k = int(top_k)
+    except (TypeError, ValueError):
+        top_k = 3
+
+    if top_k <= 0:
+        top_k = 3
+
+    if _memory_search_history is None:
+        return {"success": False, "results": [], "error": "memory subsystem unavailable"}
+
+    try:
+        results = _memory_search_history(query, top_k=top_k)
+    except Exception as e:
+        return {"success": False, "results": [], "error": f"memory search failed: {e}"}
+
+    if not results:
+        return {"success": False, "results": [], "error": "No relevant history found"}
+
+    return {"success": True, "results": results, "error": None}
 
 
 if __name__ == "__main__":

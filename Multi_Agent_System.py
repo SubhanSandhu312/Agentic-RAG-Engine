@@ -5,6 +5,7 @@ import uuid
 from typing import TypedDict, List
 
 import mcp_client
+import memory_manager
 from mcp_client import (
     call_tool_json,
     get_llm_tool_schemas,
@@ -55,12 +56,117 @@ class AgentState(TypedDict):
     critic_result: dict
     iteration_count: int
     final_answer: str
+    # Step 6 (persistent memory): session_id is the same value as the
+    # LangGraph thread_id (run_query passes it through explicitly) so
+    # episodic/search-history records can be tagged and later filtered by
+    # session without every node needing the LangGraph `config` object.
+    # memory_context is the small, formatted string the Planner reads;
+    # recalled_memories keeps the same information structured (per-tier)
+    # so callers/tests can inspect exactly what was recalled without
+    # re-parsing memory_context.
+    session_id: str
+    memory_context: str
+    recalled_memories: dict
 
 llm = ChatOpenAI(
     model="openrouter/free",
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENROUTER_API_KEY"),
 )
+
+
+
+def _format_memory_context(recent, search_matches, semantic_matches):
+    """Render the (small, bounded) recalled-memory tiers into one short
+    text block for the Planner's prompt. Returns "" if nothing was
+    recalled, so the Planner's prompt is byte-identical to before Step 6
+    when memory is empty/unavailable."""
+
+    if not (recent or search_matches or semantic_matches):
+        return ""
+
+    lines = []
+
+    if recent:
+        lines.append("Recent past interactions (most recent first):")
+        for r in recent[:3]:
+            lines.append(
+                f"- [{r.get('timestamp', '')}] Q: {r.get('query', '')} "
+                f"-> status={r.get('status', '')}"
+            )
+
+    if search_matches:
+        lines.append("Related past search/answer history:")
+        for m in search_matches[:3]:
+            if m.get("type") == "episodic":
+                lines.append(
+                    f"- (past answer) query={m.get('query', '')!r} "
+                    f"-> {m.get('final_answer_snippet', '')[:120]!r}"
+                )
+            else:
+                lines.append(
+                    f"- (past search attempt) tool={m.get('tool')} "
+                    f"query={m.get('query')!r} success={m.get('success')}"
+                )
+
+    if semantic_matches:
+        lines.append("Related durable facts/conclusions:")
+        for m in semantic_matches[:3]:
+            lines.append(f"- {m.get('text', '')[:200]!r}")
+
+    return "\n".join(lines)
+
+
+def memory_recall(state: AgentState):
+    """Memory Recall node (Step 6) - the FIRST node in the graph, running
+    before the Planner.
+
+    Queries all three persistent-memory tiers (episodic, search/retrieval,
+    semantic) via memory_manager with a small bounded top_k (3) each -
+    never the entire history - and adds the result to state as CONTEXT for
+    the Planner to consider.
+
+    This is explicitly NOT ground truth: the Planner/Tool Agent/Critic
+    still verify everything through live retrieval exactly as in Steps
+    4-5. Nothing here short-circuits the loop or answers the query itself.
+
+    Best-effort and read-only: any failure in any tier (corrupt/missing
+    memory files, unavailable FAISS index, embedding failure) is caught
+    per-tier so a problem in one tier can't blank out the others, and a
+    total failure degrades to an empty memory_context - the graph then
+    behaves exactly as it did before Step 6, never crashing here.
+    """
+
+    query = state.get("query", "")
+
+    try:
+        recent = memory_manager.load_recent_interactions(limit=3)
+    except Exception as e:
+        print(f"[memory_recall] WARNING: episodic recall failed: {e}")
+        recent = []
+
+    try:
+        search_matches = memory_manager.search_history(query, top_k=3) if query else []
+    except Exception as e:
+        print(f"[memory_recall] WARNING: search-history recall failed: {e}")
+        search_matches = []
+
+    try:
+        semantic_matches = memory_manager.retrieve_relevant_memory(query, top_k=3) if query else []
+    except Exception as e:
+        print(f"[memory_recall] WARNING: semantic recall failed: {e}")
+        semantic_matches = []
+
+    memory_context = _format_memory_context(recent, search_matches, semantic_matches)
+
+    return {
+        "memory_context": memory_context,
+        "recalled_memories": {
+            "recent_interactions": recent,
+            "search_matches": search_matches,
+            "semantic_matches": semantic_matches,
+        },
+    }
 
 
 def router(state: AgentState):
@@ -100,6 +206,17 @@ def planner(state: AgentState):
         )
     else:
         prompt_content = f"Target technical query: {user_query}"
+        memory_context = state.get("memory_context", "")
+        if memory_context:
+            # Step 6: recalled memory is offered as CONTEXT only, on the
+            # first pass, alongside (never instead of) the live retrieval
+            # loop that already follows - see the added note in
+            # PLANNER_SYSTEM_PROMPT.
+            prompt_content += (
+                "\n\nRelevant memory from past sessions (context only - "
+                "verify via retrieval, do not treat as ground truth):\n"
+                f"{memory_context}"
+            )
 
     messages = [
         SystemMessage(content=PLANNER_SYSTEM_PROMPT),
@@ -328,11 +445,25 @@ def tool_executor(state: AgentState):
         if status is None:
             status = "approved" if tool_name in DESTRUCTIVE_TOOLS and result.get("success") else None
 
+        # Step 6: a small, honest result_count for the memory layer's
+        # search-history log (memory_manager.log_search_attempts) - not
+        # used anywhere else, so it never changes existing behavior.
+        if result.get("success"):
+            if isinstance(result.get("results"), list):
+                result_count = len(result["results"])
+            elif result.get("content") is not None or result.get("issue") is not None:
+                result_count = 1
+            else:
+                result_count = 0
+        else:
+            result_count = 0
+
         entry = {
             "tool_name": tool_name,
             "args": tool_args,
             "success": bool(result.get("success")),
             "error": result.get("error"),
+            "result_count": result_count,
         }
         if status:
             entry["status"] = status
@@ -420,15 +551,77 @@ def Synthesizer(state: AgentState):
         "final_answer": response.content
     }
 
+
+def memory_persist(state: AgentState):
+    """Memory Persist node (Step 6) - the LAST node before END, running
+    after the Synthesizer.
+
+    Writes a durable, cross-session record of this completed run to disk
+    via memory_manager, distinct from (and in addition to) LangGraph's
+    MemorySaver checkpoint of this same run (see memory_manager.py's
+    module docstring for the short-term/long-term distinction):
+
+      - Episodic memory always gets one record for this run, including
+        any Step 5 HIL approvals/rejections captured in tool_results, so
+        a later query can find "what happened last time" via
+        search_history/load_recent_interactions - this covers the
+        explicit requirement that approved AND rejected destructive
+        actions be persisted and retrievable.
+      - The search-attempt log gets one entry per read-only tool call
+        made this run (log_search_attempts), for the "have I searched
+        this before" signal Memory Recall surfaces on a later run.
+      - Semantic memory gets ONE concise fact - the query + final answer
+        - only when the Critic actually PASSed (a confident, verified
+        conclusion), never for a MAX_RETRIES give-up, so semantic memory
+        stays a store of durable facts, not exhausted-search noise.
+
+    Best-effort and isolated per tier: a failure in any one write is
+    caught and logged without blocking the others or raising - a memory
+    failure here must never prevent the graph from completing and
+    returning final_answer to the caller.
+    """
+
+    session_id = state.get("session_id", "")
+    tool_results = state.get("tool_results", []) or []
+
+    try:
+        memory_manager.save_interaction(state, session_id)
+    except Exception as e:
+        print(f"[memory_persist] WARNING: failed to save episodic interaction: {e}")
+
+    try:
+        memory_manager.log_search_attempts(session_id, tool_results)
+    except Exception as e:
+        print(f"[memory_persist] WARNING: failed to log search attempts: {e}")
+
+    try:
+        critic_result = state.get("critic_result", {}) or {}
+        final_answer = state.get("final_answer", "")
+        if critic_result.get("verdict") == "PASS" and final_answer:
+            fact_text = f"Q: {state.get('query', '')}\nA: {final_answer}"
+            memory_manager.save_memory(fact_text, source="synthesizer", session_id=session_id)
+    except Exception as e:
+        print(f"[memory_persist] WARNING: failed to save semantic memory: {e}")
+
+    return {}
+
+
 graph_builder = StateGraph(AgentState)
 
+graph_builder.add_node("memory_recall", memory_recall)
 graph_builder.add_node("planner", planner)
 graph_builder.add_node("tool_agent", tool_agent)
 graph_builder.add_node("tool_executor", tool_executor)
 graph_builder.add_node("critic_agent", critic_agent)
 graph_builder.add_node("Synthesizer", Synthesizer)
+graph_builder.add_node("memory_persist", memory_persist)
 
-graph_builder.add_edge(START, "planner")
+# Step 6: START -> Memory Recall -> Planner -> ... (unchanged loop) ... ->
+# Synthesizer -> Memory Persist -> END. The existing critic_agent -> planner
+# retry loop is untouched - memory_recall runs exactly once per invocation,
+# not on every retry, since it is only reachable from START.
+graph_builder.add_edge(START, "memory_recall")
+graph_builder.add_edge("memory_recall", "planner")
 graph_builder.add_edge("planner", "tool_agent")
 graph_builder.add_edge("tool_agent", "tool_executor")
 graph_builder.add_edge("tool_executor", "critic_agent")
@@ -441,7 +634,8 @@ graph_builder.add_conditional_edges(
         "Synthesizer": "Synthesizer"
     }
 )
-graph_builder.add_edge("Synthesizer", END)
+graph_builder.add_edge("Synthesizer", "memory_persist")
+graph_builder.add_edge("memory_persist", END)
 
 # Step 5: a real checkpointer is REQUIRED for interrupt()/Command(resume=...)
 # to actually pause and resume the graph rather than raising a bare
@@ -452,7 +646,7 @@ checkpointer = MemorySaver()
 graph = graph_builder.compile(checkpointer=checkpointer)
 
 
-def _initial_state(query):
+def _initial_state(query, session_id=None):
     return {
         "query": query,
         "messages": [],
@@ -464,6 +658,13 @@ def _initial_state(query):
         "critic_result": {},
         "iteration_count": 0,
         "final_answer": "",
+        # Step 6: tags every persisted memory record with the same id
+        # used as the LangGraph thread_id (see run_query below), so
+        # episodic/search-history entries can be traced back to the run
+        # that produced them.
+        "session_id": session_id or "",
+        "memory_context": "",
+        "recalled_memories": {},
     }
 
 
@@ -516,7 +717,7 @@ def run_query(query, thread_id=None):
     thread_id = thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
 
-    result = graph.invoke(_initial_state(query), config=config)
+    result = graph.invoke(_initial_state(query, session_id=thread_id), config=config)
 
     while "__interrupt__" in result and result["__interrupt__"]:
         interrupt_obj = result["__interrupt__"][0]
