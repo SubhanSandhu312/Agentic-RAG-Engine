@@ -20,7 +20,9 @@ LangGraph agent (Multi_Agent_System.py) never imports this module - it
 only talks to it through mcp_client.py over the MCP protocol.
 """
 
+import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Make sure the project root is importable regardless of the working
@@ -33,6 +35,12 @@ from mcp.server.fastmcp import FastMCP
 from llm_calling import search_documents_structured
 
 DATA_DIR = (PROJECT_ROOT / "data").resolve()
+
+# Local mock "issue tracker" storage for the create_issue action tool
+# (Step 5). This never talks to GitHub or any external service - it is
+# a safe local stand-in used to demonstrate a destructive/write MCP
+# tool gated by human approval.
+ISSUES_FILE = (DATA_DIR / "issues.json").resolve()
 
 # Extensions treated as "code/config" for the search_code tool. Anything
 # else indexed under data/ (docs, txt, etc.) is left to search_documents.
@@ -188,6 +196,77 @@ def search_code(query: str, top_k: int = 5) -> dict:
         return {"success": False, "results": [], "error": "No matching code found"}
 
     return {"success": True, "results": results, "error": None}
+
+
+def _load_issues():
+    """Read data/issues.json, tolerating a missing or corrupted file (a
+    fresh/empty list, not a crash - this is a local mock store, not a
+    real database)."""
+
+    if not ISSUES_FILE.exists():
+        return []
+    try:
+        with open(ISSUES_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def _save_issues(issues):
+    ISSUES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(ISSUES_FILE, "w", encoding="utf-8") as f:
+        json.dump(issues, f, indent=2)
+
+
+@mcp.tool()
+def create_issue(title: str, body: str = "", metadata: dict = None) -> dict:
+    """Create a tracked issue and persist it locally to data/issues.json.
+
+    This is intentionally a MOCK external side effect - it does NOT call
+    the real GitHub API or any other external service. Its purpose is to
+    demonstrate a genuinely destructive/write MCP tool that the Tool Agent
+    can select, which the client (mcp_client.py) gates behind human
+    approval via LangGraph's interrupt() BEFORE this function ever runs
+    (see DESTRUCTIVE_TOOLS / call_tool_json). Calling this function
+    directly bypasses that gate, so nothing in this project does so.
+
+    Args:
+        title: Issue title. Required, non-empty.
+        body: Issue body/description. Optional, defaults to "".
+        metadata: Optional JSON-serializable object with extra context
+            (e.g. {"file": "Dockerfile", "severity": "high"}).
+
+    Returns:
+        {"success": bool, "issue": {"id", "title", "body", "metadata",
+        "created_at"} | None, "error": str | None}
+    """
+
+    if not isinstance(title, str) or not title.strip():
+        return {"success": False, "issue": None, "error": "title must be a non-empty string"}
+
+    if metadata is not None and not isinstance(metadata, dict):
+        return {"success": False, "issue": None, "error": "metadata must be an object/dict"}
+
+    if body is not None and not isinstance(body, str):
+        return {"success": False, "issue": None, "error": "body must be a string"}
+
+    try:
+        issues = _load_issues()
+        next_id = max((int(i.get("id", 0)) for i in issues), default=0) + 1
+        issue = {
+            "id": next_id,
+            "title": title.strip(),
+            "body": body or "",
+            "metadata": metadata or {},
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        issues.append(issue)
+        _save_issues(issues)
+    except Exception as e:
+        return {"success": False, "issue": None, "error": f"failed to persist issue: {e}"}
+
+    return {"success": True, "issue": issue, "error": None}
 
 
 if __name__ == "__main__":

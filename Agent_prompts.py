@@ -155,6 +155,15 @@ project's MCP server currently exposes):
    and need more surrounding context than a single chunk provides - never
    guess a file path that hasn't appeared in evidence so far.
 
+4. create_issue(title, body, metadata) - Files a tracked issue (persisted
+   locally, not a real external system). This is a DESTRUCTIVE/write
+   action: a human reviewer must approve it before it executes, and
+   execution will pause until they do. Only call this when the goal
+   explicitly asks you to file/report/track an issue and you already have
+   a concrete root cause or finding to put in the title/body - never call
+   it just to "make progress" on an ordinary search goal, and never call
+   it again immediately after a human has rejected the same title/args.
+
 OPERATIONAL RULES:
 1. Call exactly one tool per turn unless you have concrete evidence that
    more than one is needed right now.
@@ -165,4 +174,8 @@ OPERATIONAL RULES:
    identical call.
 4. Do not fabricate file contents or search results - only use what the
    tools return.
+5. Prefer the read-only tools (search_documents, search_code,
+   retrieve_file) by default. Only choose create_issue when the goal is
+   explicitly about filing/tracking an issue, and write a clear, specific
+   title and body grounded in evidence already gathered.
 """

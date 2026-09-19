@@ -41,15 +41,17 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 SERVER_SCRIPT = str(Path(__file__).resolve().parent / "mcp_server.py")
 
-# --- Tool safety classification (Step 5 preparation) -----------------------
+# --- Tool safety classification (Step 5: Human-in-the-Loop) ----------------
 #
-# Step 5 will require human authorization before any state-altering or
-# destructive action executes. Every tool mcp_server.py exposes today is
-# read-only, so DESTRUCTIVE_TOOLS is empty in practice - but the
-# interception point below (`_guard_destructive_tool`, called from
-# `call_tool_json` before any JSON-RPC request is sent) is real and wired
-# up now, so adding a destructive tool later doesn't require touching the
-# dispatch path again.
+# search_documents/retrieve_file/search_code are read-only and always
+# execute automatically. create_issue is a REAL destructive/write tool
+# (mcp_server.py persists it to data/issues.json) and requires human
+# authorization before it executes - see `_guard_destructive_tool`, called
+# from `call_tool_json` before any JSON-RPC request is sent. modify_file
+# and run_sql_mutation remain placeholders (no such tool exists on the
+# server) kept only so the classification set doesn't need to change again
+# if either is implemented later; calling them is blocked the same way a
+# genuinely destructive tool would be, they simply never reach the server.
 READ_ONLY_TOOLS = {"search_documents", "retrieve_file", "search_code"}
 DESTRUCTIVE_TOOLS = {"create_issue", "modify_file", "run_sql_mutation"}
 
@@ -72,6 +74,23 @@ class DestructiveToolBlockedError(RuntimeError):
     context (no checkpointer/thread yet), so destructive tools still fail
     safely instead of silently executing.
     """
+
+
+class DestructiveActionRejectedError(RuntimeError):
+    """Raised when a human reviewer REJECTS a DESTRUCTIVE_TOOLS call after
+    a real interrupt()/Command(resume=...) round-trip (Step 5).
+
+    Distinct from DestructiveToolBlockedError: this means a human was
+    actually asked and said no (or the resume payload was malformed), not
+    that no human was available to ask at all. `tool_agent`/`tool_executor`
+    catch this and record a structured rejection in `tool_results` instead
+    of letting it crash the graph.
+    """
+
+    def __init__(self, tool_name, reason):
+        self.tool_name = tool_name
+        self.reason = reason
+        super().__init__(f"human reviewer rejected '{tool_name}': {reason}")
 
 
 class _MCPToolResponse(BaseModel):
@@ -112,19 +131,37 @@ def _validate_tool_response(name, data):
     return validated.model_dump()
 
 
-def _guard_destructive_tool(name):
+def _guard_destructive_tool(name, arguments):
     """Interception pre-hook: block DESTRUCTIVE_TOOLS before the JSON-RPC
-    call is made. See DestructiveToolBlockedError's docstring."""
+    call is made, and gate them behind a real human decision.
+
+    Returns the arguments that should actually be executed (identical to
+    `arguments` unless the human edited them during approval). Raises
+    instead of returning when the tool must not execute:
+
+      - langgraph.errors.GraphInterrupt: first pass through a real,
+        checkpointed graph run - this PAUSES the graph and is NOT caught
+        here; it propagates unchanged and is the human-in-the-loop gate
+        itself. LangGraph re-invokes the calling node on resume, at which
+        point this same interrupt() call returns the resume payload
+        instead of raising again.
+      - DestructiveActionRejectedError: a human reviewer was actually
+        asked (a real resume happened) and said no, or the resume payload
+        was malformed/missing "approved".
+      - DestructiveToolBlockedError: interrupt() could not even be posed
+        (e.g. called outside a runnable/checkpointed graph, such as a
+        plain script or a unit test) - fails safe rather than executing.
+    """
 
     if name not in DESTRUCTIVE_TOOLS:
-        return
+        return arguments
 
     payload = {
-        "reason": "destructive_tool_call",
         "tool": name,
+        "args": arguments,
         "message": (
-            f"Tool '{name}' is marked destructive and requires human "
-            "authorization before it can run."
+            f"Human approval required to execute the destructive tool "
+            f"'{name}'."
         ),
     }
 
@@ -138,13 +175,10 @@ def _guard_destructive_tool(name):
 
     try:
         # Inside a real graph run with a checkpointer (Step 5), this raises
-        # GraphInterrupt, which pauses execution and waits for a human
-        # Command(resume=...) - let that propagate untouched, it IS the
-        # human-in-the-loop gate.
-        lg_interrupt(payload)
-        # If a future resume explicitly authorizes the call, interrupt()
-        # returns instead of raising - treat that as approval to proceed.
-        return
+        # GraphInterrupt on the first pass (pausing the graph) and RETURNS
+        # the value passed to Command(resume=...) once the driver resumes
+        # the same thread.
+        decision = lg_interrupt(payload)
     except GraphInterrupt:
         raise
     except Exception as e:
@@ -154,6 +188,23 @@ def _guard_destructive_tool(name):
         raise DestructiveToolBlockedError(
             f"blocked destructive tool '{name}' pre-execution: {e}"
         ) from e
+
+    if not isinstance(decision, dict):
+        raise DestructiveToolBlockedError(
+            f"blocked destructive tool '{name}': resume payload must be a "
+            f"dict with an 'approved' key, got {type(decision).__name__}"
+        )
+
+    if not decision.get("approved"):
+        reason = decision.get("reason") or "rejected by human reviewer"
+        raise DestructiveActionRejectedError(name, reason)
+
+    # Approved - if the human edited the arguments during review, THOSE
+    # are what get executed, not the original proposal.
+    edited_args = decision.get("args")
+    if isinstance(edited_args, dict) and edited_args:
+        return edited_args
+    return arguments
 
 
 class _MCPClientManager:
@@ -351,13 +402,17 @@ def call_tool_json(name, arguments):
     graph.
 
     Raises:
-        DestructiveToolBlockedError / langgraph.errors.GraphInterrupt: if
-            `name` is in DESTRUCTIVE_TOOLS (see _guard_destructive_tool).
+        DestructiveToolBlockedError / langgraph.errors.GraphInterrupt /
+            DestructiveActionRejectedError: if `name` is in
+            DESTRUCTIVE_TOOLS (see _guard_destructive_tool).
         MCPServerError: if the server process itself could not be
             started/reached, even after one automatic respawn attempt.
     """
 
-    _guard_destructive_tool(name)
+    # May return edited arguments (human-in-the-loop "edit" approval) - the
+    # EDITED arguments are what actually get executed below, never the
+    # original proposal silently.
+    arguments = _guard_destructive_tool(name, arguments)
 
     manager = get_manager()
 

@@ -46,6 +46,7 @@ def main():
     tools = {t.name for t in mcp_client.list_available_tools()}
     check("search_documents" in tools, "search_documents is discoverable via MCP list_tools")
     check("retrieve_file" in tools, "retrieve_file is discoverable via MCP list_tools")
+    check("create_issue" in tools, "create_issue (Step 5 destructive tool) is discoverable via MCP list_tools")
 
     print("\n=== 2. search_documents: real query ===")
     result = mcp_client.call_tool_json(
@@ -102,8 +103,8 @@ def main():
     print("\n=== 10. MCP tool schemas convert to OpenAI/LLM function-calling format ===")
     schemas = mcp_client.get_llm_tool_schemas()
     names = {s["function"]["name"] for s in schemas}
-    check(names == {"search_documents", "retrieve_file", "search_code"},
-          "get_llm_tool_schemas() returns exactly the 3 tools the server exposes")
+    check(names == {"search_documents", "retrieve_file", "search_code", "create_issue"},
+          "get_llm_tool_schemas() returns exactly the 4 tools the server exposes")
     check(all(s["type"] == "function" and "parameters" in s["function"] for s in schemas),
           "every schema has the {type: function, function: {..., parameters}} shape bind_tools() expects")
 
@@ -137,6 +138,19 @@ def main():
         raise AssertionError("FAILED: expected DestructiveToolBlockedError for a DESTRUCTIVE_TOOLS name")
     except mcp_client.DestructiveToolBlockedError:
         print("OK: a DESTRUCTIVE_TOOLS-listed tool is intercepted before any JSON-RPC call is made")
+
+    print("\n=== 14. create_issue is blocked outside a real graph context ===")
+    import json as _json
+    from pathlib import Path as _Path
+    issues_file = _Path(__file__).resolve().parent / "data" / "issues.json"
+    issues_before = issues_file.read_text(encoding="utf-8") if issues_file.exists() else None
+    try:
+        mcp_client.call_tool_json("create_issue", {"title": "should not be created"})
+        raise AssertionError("FAILED: expected DestructiveToolBlockedError for create_issue outside a graph")
+    except mcp_client.DestructiveToolBlockedError:
+        print("OK: create_issue is intercepted before any JSON-RPC call when there is no checkpointer/thread")
+    issues_after = issues_file.read_text(encoding="utf-8") if issues_file.exists() else None
+    check(issues_before == issues_after, "data/issues.json was not modified by the blocked create_issue call")
 
     print("\nALL MCP INTEGRATION CHECKS PASSED")
 
